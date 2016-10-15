@@ -53,7 +53,7 @@ abstract class AbstractRepository extends EntityRepository
      * @param int $offset
      * @return object[] Entity array
      */
-    public function findAllWithLimitAndOffset(int $limit = null, int $offset = null): array
+    public function findAllWithLimitAndOffset(int $limit = 50, int $offset = null): array
     {
         // Doctrine can handle correctly only null limits, but not 0
         if (!$limit) { $limit = null; }
@@ -69,11 +69,18 @@ abstract class AbstractRepository extends EntityRepository
 
     public function countAll(): int
     {
-        $ids = $this->getClassMetadata()->getIdentifierFieldNames();
-        $id = reset($ids);
+        $id = $this->getEntityIdField();
         $queryBuilder = $this->createQueryBuilder('entity');
         $queryBuilder->select($queryBuilder->expr()->count('entity.' . $id));
 
         return $queryBuilder->getQuery()->getSingleScalarResult();
+    }
+
+    private function getEntityIdField(): string
+    {
+        $ids = $this->getClassMetadata()->getIdentifierFieldNames();
+        $id = reset($ids);
+
+        return $id;
     }
 }

@@ -3,6 +3,7 @@
 namespace AppBundle\Form;
 
 use Symfony\Component\Form\AbstractType;
+use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolver;
 
 /**
@@ -10,6 +11,8 @@ use Symfony\Component\OptionsResolver\OptionsResolver;
  */
 abstract class AbstractFormType extends AbstractType
 {
+
+    abstract public function getEntityClassName(): string;
 
     /** {@inheritDoc} */
     public function configureOptions(OptionsResolver $resolver)
@@ -22,5 +25,29 @@ abstract class AbstractFormType extends AbstractType
         );
     }
 
-    abstract protected function getDataClass(): string;
+    /** {@inheritDoc} */
+    public function buildForm(FormBuilderInterface $builder, array $options)
+    {
+        $dataClassVariables = array_keys(get_class_vars($this->getDataClass()));
+
+        foreach ($dataClassVariables as $fieldName) {
+            $builder->add($this->underscore($fieldName));
+        }
+    }
+
+    /**
+     * Form data object class name
+     * @return string class name
+     */
+    protected function getDataClass(): string
+    {
+        return static::class;
+    }
+
+    private function underscore(string $string): string
+    {
+        $string = preg_replace('/(?<=[a-z])([A-Z])/', '_$1', $string);
+
+        return strtolower($string);
+    }
 }

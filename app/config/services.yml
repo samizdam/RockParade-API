@@ -42,10 +42,6 @@ services:
         class: AppBundle\Entity\Repository\BandMemberRepository
         factory: ['@doctrine.orm.entity_manager', 'getRepository']
         arguments: ['AppBundle\Entity\BandMember']
-    rockparade.role_repository:
-        class: AppBundle\Entity\Repository\RoleRepository
-        factory: ['@doctrine.orm.entity_manager', 'getRepository']
-        arguments: ['AppBundle\Entity\Role']
     rockparade.event_repository:
         class: AppBundle\Entity\Repository\EventRepository
         factory: ['@doctrine.orm.entity_manager', 'getRepository']
@@ -62,10 +58,15 @@ services:
         class: AppBundle\Entity\Repository\OrganizerRepository
         factory: ['@doctrine.orm.entity_manager', 'getRepository']
         arguments: ['AppBundle\Entity\Organizer']
+    rockparade.ambassador_repository:
+        class: AppBundle\Entity\Infrasctucture\AmbassadorRepository
+        factory: ['@doctrine.orm.entity_manager', 'getRepository']
+        arguments: ['AppBundle\Entity\Infrasctucture\Ambassador']
 
     # Services
     rockparade.entity_service:
         class: AppBundle\Service\Entity\EntityService
+        arguments: ['@rockparade.ambassador_service']
     rockparade.band:
         class: AppBundle\Service\Entity\BandService
         arguments: ['@rockparade.band_repository', '@rockparade.band_member_repository', '@rockparade.user_repository']
@@ -88,7 +89,7 @@ services:
         arguments: ['%kernel.root_dir%', '@rockparade.image_repository', '@rockparade.image_extension_checker']
     rockparade.api_response_factory:
         class: AppBundle\Response\ApiResponseFactory
-        arguments: ['%kernel.root_dir%']
+        arguments: ['%kernel.root_dir%', '@doctrine.orm.entity_manager', '@rockparade.entity_service', '@router']
     rockparade.event:
         class: AppBundle\Service\Entity\EventService
         arguments: ['@rockparade.event_repository', '@rockparade.link_repository', '@router', '@rockparade.file_service']
@@ -96,6 +97,9 @@ services:
         class: AppBundle\Service\Extractor\Extractor
         arguments: ['@router']
         public: false
+    rockparade.ambassador_service:
+        class: AppBundle\Service\Ambassador\AmbassadorService
+        arguments: ['@doctrine.orm.entity_manager', '@rockparade.band']
 
     # Event listeners
     rockparade.event_listener.exception:
@@ -111,6 +115,17 @@ services:
     rockparade.event_listener.serializer:
         class: AppBundle\EventListener\SerializerListener
         arguments: ['@rockparade.extractor']
-        scope: request
         tags:
             - { name: jms_serializer.subscribing_handler }
+
+    # Validators
+    rockparade.validator.entity_not_exists:
+        class: AppBundle\Form\Validation\EntityDoesNotExistsValidator
+        arguments: ['@doctrine.orm.entity_manager']
+        tags:
+            - { name: validator.constraint_validator }
+    rockparade.validator.entity_exist:
+        class: AppBundle\Form\Validation\EntityExistsValidator
+        arguments: ['@doctrine.orm.entity_manager']
+        tags:
+            - { name: validator.constraint_validator }

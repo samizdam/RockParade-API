@@ -3,14 +3,12 @@
 namespace AppBundle\Controller;
 
 use AppBundle\Controller\Infrastructure\RestController;
-use AppBundle\Response\ApiResponse;
-use AppBundle\Service\Security\TokenAuthenticator;
 use GuzzleHttp\Exception\ClientException;
 use Nelmio\ApiDocBundle\Annotation\ApiDoc;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
@@ -78,14 +76,17 @@ class LoginController extends RestController
         $userService = $this->get('rockparade.user');
         $user = $userService->createOrUpdateUser($vkontakteToken);
 
-        $response = new ApiResponse(
-            [
-                TokenAuthenticator::TOKEN_HEADER => $user->getToken(),
-            ],
-            Response::HTTP_OK
+        $clientUrl = sprintf(
+            '%s/#/login/vk/callback?%s',
+            $request->getSchemeAndHttpHost(),
+            http_build_query(
+                [
+                    'token' => $user->getToken(),
+                ]
+            )
         );
 
-        return $this->respond($response);
+        return new RedirectResponse($clientUrl);
     }
 
     /**

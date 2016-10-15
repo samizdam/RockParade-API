@@ -2,16 +2,11 @@ build:
   environment:
     php:
       version: 7.0.6
-  tests:
-    override:
-      -
-        command: phpunit --coverage-clover=my-coverage-file tests
-        coverage:
-          file: my-coverage-file
-          format: php-clover
 
 checks:
   php: true
+
+tests: false
 
 filter:
   excluded_paths:

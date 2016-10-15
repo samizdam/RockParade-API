@@ -49,7 +49,7 @@ class BandControllerTest extends FunctionalTester
     {
         $this->followRedirects();
 
-        $this->sendGetRequest('/bands');
+        $this->sendGetRequest('/api/bands');
         $listBandsResponseCode = $this->getResponseCode();
         $contents = $this->getResponseContents();
 
@@ -64,7 +64,7 @@ class BandControllerTest extends FunctionalTester
     /** @test */
     public function createAction_POSTBandCreateEmptyRequest_validationErrors()
     {
-        $this->sendPostRequest('/band', []);
+        $this->sendPostRequest('/api/band', []);
         $responseCode = $this->getResponseCode();
         $errors = $this->getResponseContents()['errors'];
 
@@ -91,32 +91,32 @@ class BandControllerTest extends FunctionalTester
             ],
         ];
 
-        $this->sendPostRequest('/band', $parameters);
-        $createBandResponseCode = $this->getResponseCode();
-        $createBandResponseLocation = $this->getResponseLocation();
+        $this->sendPostRequest('/api/band', $parameters);
+        $responseCode = $this->getResponseCode();
+        $responseLocation = $this->getResponseLocation();
 
-        $this->assertEquals(201, $createBandResponseCode);
-        $this->assertEquals('/band/Derbans', $createBandResponseLocation);
+        $this->assertEquals(201, $responseCode);
+        $this->assertRegExp('/^http(.*)\/band\/.{8}$/', $responseLocation);
 
-        $this->sendGetRequest('/bands');
-        $listBandsResponseCode = $this->getResponseCode();
-        $bandListContents = $this->getResponseContents();
+        $this->sendGetRequest('/api/bands');
+        $responseCode = $this->getResponseCode();
+        $contentsData = $this->getResponseContents()['data'];
 
-        $this->assertEquals(200, $listBandsResponseCode);
-        $this->assertEquals(self::BAND_NAME_SECOND, $bandListContents['data'][2]['name']);
-        $this->assertEquals(self::BAND_DESCRIPTION_SECOND, $bandListContents['data'][2]['description']);
-        $this->assertEquals(self::USER_LOGIN_EXECUTOR, $bandListContents['data'][2]['creator']);
-        $this->assertContains(self::USER_LOGIN_EXECUTOR, $bandListContents['data'][2]['members'][2]['login']);
-        $this->assertContains(self::BAND_USER_LOGIN_FIRST, $bandListContents['data'][2]['members'][0]['login']);
-        $this->assertContains(self::USER_DESCRIPTION_SHORT_FIRST, $bandListContents['data'][2]['members'][0]['short_description']);
-        $this->assertContains(self::BAND_USER_LOGIN_SECOND, $bandListContents['data'][2]['members'][1]['login']);
-        $this->assertContains(self::USER_DESCRIPTION_SHORT_SECOND, $bandListContents['data'][2]['members'][1]['short_description']);
+        $this->assertEquals(200, $responseCode);
+        $this->assertEquals(self::BAND_NAME_SECOND, $contentsData[2]['name']);
+        $this->assertEquals(self::BAND_DESCRIPTION_SECOND, $contentsData[2]['description']);
+        $this->assertEquals(self::USER_LOGIN_EXECUTOR, $contentsData[2]['creator']);
+        $this->assertContains(self::USER_LOGIN_EXECUTOR, $contentsData[2]['members'][0]['login']);
+        $this->assertContains(self::BAND_USER_LOGIN_FIRST, $contentsData[2]['members'][1]['login']);
+        $this->assertContains(self::USER_DESCRIPTION_SHORT_FIRST, $contentsData[2]['members'][1]['short_description']);
+        $this->assertContains(self::BAND_USER_LOGIN_SECOND, $contentsData[2]['members'][2]['login']);
+        $this->assertContains(self::USER_DESCRIPTION_SHORT_SECOND, $contentsData[2]['members'][2]['short_description']);
     }
 
     /** @test */
     public function viewAction_GETBandNameRequest_singleBandInfo()
     {
-        $this->sendGetRequest('/band/Banders');
+        $this->sendGetRequest('/api/band/Banders');
         $contents = $this->getResponseContents();
         $responseCode = $this->getResponseCode();
 
@@ -128,7 +128,7 @@ class BandControllerTest extends FunctionalTester
     /** @test */
     public function viewAction_GETBandNotExistingNameRequest_bandNotFoundError()
     {
-        $this->sendGetRequest('/band/VeryUnexistingBand');
+        $this->sendGetRequest('/api/band/VeryUnexistingBand');
         $contents = $this->getResponseContents();
         $responseCode = $this->getResponseCode();
 
@@ -139,20 +139,54 @@ class BandControllerTest extends FunctionalTester
     /** @test */
     public function editAction_PUTBandNameRequestWithExistingName_validationError()
     {
-        $this->followRedirects();
         $parameters = [
             'name'        => self::BAND_NAME_EXISTING,
             'description' => self::BAND_DESCRIPTION_FIRST,
             'members'     => [
-                self::BAND_USER_LOGIN_THIRD,
+                [
+                    'login' => self::BAND_USER_LOGIN_FIRST,
+                    'short_description' => self::BAND_MEMBER_FIRST_SHORT_DESCRIPTION,
+                ],
             ],
         ];
 
-        $this->sendPutRequest('/band/Banders', $parameters);
+        $this->sendPutRequest('/api/band/Banders', $parameters);
         $contents = $this->getResponseContents();
 
         $this->assertEquals(400, $this->getResponseCode());
         $this->assertContains('Band with name "Existing Band" already exists.', $contents['errors']);
+    }
+
+    /** @test */
+    public function editAction_PUTBandNameRequestWithSameNameAndDifferentDescription_bandUpdatedWithNewParameters()
+    {
+        $parameters = [
+            'name'        => self::BAND_NAME_FIRST,
+            'description' => self::BAND_DESCRIPTION_FIRST_EDITED,
+        ];
+
+        $this->sendPutRequest('/api/band/Banders', $parameters);
+        $this->assertEquals(204, $this->getResponseCode());
+
+        $this->sendGetRequest('/api/band/Banders');
+        $contents = $this->getResponseContents();
+        $this->assertEquals(200, $this->getResponseCode());
+        $this->assertEquals(self::BAND_NAME_FIRST, $contents['data']['name']);
+        $this->assertEquals(self::BAND_DESCRIPTION_FIRST_EDITED, $contents['data']['description']);
+    }
+
+    /** @test */
+    public function editAction_PUTBandNameRequestAndExecutorIsNotCreator_accessDenied()
+    {
+        $this->givenExecutorNotEventCreator();
+        $parameters = [
+            'name'        => self::BAND_NAME_FIRST,
+            'description' => self::BAND_DESCRIPTION_FIRST_EDITED,
+        ];
+
+        $this->sendPutRequest('/api/band/Banders', $parameters);
+
+        $this->assertEquals(403, $this->getResponseCode());
     }
 
     /** @test */
@@ -170,13 +204,10 @@ class BandControllerTest extends FunctionalTester
             ],
         ];
 
-        $this->sendPutRequest('/band/Banders', $parameters);
+        $this->sendPutRequest('/api/band/Banders', $parameters);
         $this->assertEquals(204, $this->getResponseCode());
 
-        $this->sendGetRequest('/band/Banders');
-        $this->assertEquals(404, $this->getResponseCode());
-
-        $this->sendGetRequest('/band/New%20Derbans');
+        $this->sendGetRequest('/api/band/Banders');
         $contents = $this->getResponseContents();
         $this->assertEquals(200, $this->getResponseCode());
         $this->assertEquals(self::BAND_NAME_FIRST_EDITED, $contents['data']['name']);
@@ -184,72 +215,64 @@ class BandControllerTest extends FunctionalTester
     }
 
     /** @test */
-    public function listMembersAction_GETBandMembers_listBandMembers()
-    {
-        $this->followRedirects();
-
-        $this->sendGetRequest('/band/Banders/members');
-        $listBandsResponseCode = $this->getResponseCode();
-        $contents = $this->getResponseContents();
-
-        $this->assertEquals(200, $listBandsResponseCode);
-        $this->assertEquals(self::BAND_USER_LOGIN_FIRST, $contents['data'][0]['login']);
-        $this->assertEquals(self::BAND_MEMBER_FIRST_DESCRIPTION, $contents['data'][0]['description']);
-        $this->assertEquals(self::BAND_MEMBER_FIRST_SHORT_DESCRIPTION, $contents['data'][0]['short_description']);
-    }
-
-    /** @test */
-    public function addMemberAction_POSTBandNameMembersRequestWithNewMember_bandMemberAdded()
+    public function createMemberAction_POSTBandNameMembersRequestWithNewMember_bandMemberAdded()
     {
         $parameters = [
+            'ambassador'        => self::BAND_NAME_FIRST,
             'login'             => self::BAND_USER_LOGIN_SECOND,
             'short_description' => self::USER_DESCRIPTION_SHORT_SECOND,
             'description'       => self::USER_DESCRIPTION_SECOND,
         ];
 
-        $this->sendPostRequest('/band/Banders/members', $parameters);
-        $this->assertEquals(200, $this->getResponseCode());
+        $this->sendPostRequest('/api/band/members', $parameters);
+        $this->assertEquals(201, $this->getResponseCode());
 
-        $this->sendGetRequest('/band/Banders/members');
+        $this->sendGetRequest('/api/band/Banders');
         $contents = $this->getResponseContents();
-        $this->assertEquals('derban', $contents['data'][1]['login']);
-        $this->assertEquals('hard rocker guitarist', $contents['data'][1]['short_description']);
+        $this->assertEquals('derban', $contents['data']['members'][1]['login']);
+        $this->assertEquals('hard rocker guitarist', $contents['data']['members'][1]['short_description']);
     }
     
     /** @test */
     public function deleteMemberAction_DELETEBandNameMemberLoginRequest_bandMemberDeleted()
     {
-        $this->sendDeleteRequest('/band/Banders/member/bander');
+        $this->sendDeleteRequest('/api/band/Banders/member/first');
         $this->assertEquals(204, $this->getResponseCode());
 
-        $this->sendGetRequest('/band/Banders/members');
+        $this->sendGetRequest('/api/band/Banders');
         $contents = $this->getResponseContents();
-        $this->assertEmpty($contents['data']);
+        $this->assertEmpty($contents['data']['members']);
     }
     
     /** @test */
-    public function updateMemberAction_PUTBandNameMemberLoginRequest_bandMemberUpdatedWithNewParameters()
+    public function updateMemberAction_PUTBandNameMemberRequest_bandMemberUpdatedWithNewParameters()
     {
         $this->followRedirects();
         $parameters = [
+            'ambassador'        => self::BAND_NAME_FIRST,
+            'login'             => self::USER_LOGIN_EXECUTOR,
             'short_description' => self::BAND_MEMBER_SECOND_SHORT_DESCRIPTION,
             'description'       => self::BAND_MEMBER_SECOND_DESCRIPTION,
         ];
 
-        $this->sendGetRequest('/band/Banders/members');
+        $this->sendGetRequest('/api/band/Banders');
         $contents = $this->getResponseContents();
-        $this->assertEquals(self::BAND_USER_LOGIN_FIRST, $contents['data'][0]['login']);
-        $this->assertEquals(self::BAND_MEMBER_FIRST_DESCRIPTION, $contents['data'][0]['description']);
-        $this->assertEquals(self::BAND_MEMBER_FIRST_SHORT_DESCRIPTION, $contents['data'][0]['short_description']);
+        $this->assertEquals(self::USER_LOGIN_EXECUTOR, $contents['data']['members'][0]['login']);
+        $this->assertEquals(self::BAND_MEMBER_FIRST_DESCRIPTION, $contents['data']['members'][0]['description']);
+        $this->assertEquals(self::BAND_MEMBER_FIRST_SHORT_DESCRIPTION, $contents['data']['members'][0]['short_description']);
 
-        $this->sendPutRequest('/band/Banders/member/bander', $parameters);
+        $this->sendPutRequest('/api/band/Banders/member', $parameters);
         $this->assertEquals(204, $this->getResponseCode());
 
-        $this->sendGetRequest('/band/Banders/members');
+        $this->sendGetRequest('/api/band/Banders');
         $contents = $this->getResponseContents();
-        $this->assertEquals(self::BAND_USER_LOGIN_FIRST, $contents['data'][0]['login']);
-        $this->assertEquals(self::BAND_MEMBER_SECOND_DESCRIPTION, $contents['data'][0]['description']);
-        $this->assertEquals(self::BAND_MEMBER_SECOND_SHORT_DESCRIPTION, $contents['data'][0]['short_description']);
+        $this->assertEquals(self::USER_LOGIN_EXECUTOR, $contents['data']['members'][0]['login']);
+        $this->assertEquals(self::BAND_MEMBER_SECOND_DESCRIPTION, $contents['data']['members'][0]['description']);
+        $this->assertEquals(self::BAND_MEMBER_SECOND_SHORT_DESCRIPTION, $contents['data']['members'][0]['short_description']);
+    }
 
+    private function givenExecutorNotEventCreator()
+    {
+        $this->setAuthToken(UserFixture::TEST_TOKEN_SECOND);
     }
 }

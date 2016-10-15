@@ -3,6 +3,7 @@
 namespace AppBundle\Controller\Infrastructure;
 
 use AppBundle\Entity\Infrasctucture\AbstractRepository;
+use AppBundle\Enum\ApiOperation;
 use AppBundle\Exception\EntityNotFoundException;
 use AppBundle\Response\ApiError;
 use AppBundle\Response\ApiResponse;
@@ -32,6 +33,18 @@ class RestController extends Controller
         $this->setContentType($apiResponse, $response);
 
         return $response;
+    }
+
+    protected function createAndProcessForm(
+        Request $request,
+        string $type,
+        $data = null,
+        $options = []
+    ) {
+        $form = parent::createForm($type, $data, $options);
+        $this->processForm($request, $form);
+
+        return $form;
     }
 
     /**
@@ -113,5 +126,13 @@ class RestController extends Controller
         if (!$apiResponse instanceof FileResponse) {
             $response->headers->set('Content-Type', self::MIME_TYPE_JSON);
         }
+    }
+
+    /**
+     * Create ApiOperation from Request method
+     */
+    protected function createApiOperation(Request $request): ApiOperation
+    {
+        return new ApiOperation($request->getMethod());
     }
 }

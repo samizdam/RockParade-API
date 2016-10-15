@@ -2,17 +2,23 @@
 
 namespace AppBundle\Controller;
 
-use AppBundle\Controller\Infrastructure\RestController;
+use AppBundle\Controller\Infrastructure\AmbassadorController;
+use AppBundle\Entity\Organizer;
+use AppBundle\Form\Ambassador\OrganizerFormType;
+use AppBundle\Form\Ambassador\OrganizerMemberFormType;
+use AppBundle\Service\Ambassador\AmbassadorType;
 use Nelmio\ApiDocBundle\Annotation\ApiDoc;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Method;
 use Sensio\Bundle\FrameworkExtraBundle\Configuration\Route;
+use Sensio\Bundle\FrameworkExtraBundle\Configuration\Security;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
  * @author Vehsamrak
  * @Route("organizer")
  */
-class OrganizerController extends RestController
+class OrganizerController extends AmbassadorController
 {
 
     /**
@@ -49,13 +55,13 @@ class OrganizerController extends RestController
 
     /**
      * View organizer by name
-     * @Route("/{organizerName}", name="organizer_view")
+     * @Route("/{id}", name="organizer_view")
      * @Method("GET")
      * @ApiDoc(
      *     section="Organizer",
      *     requirements={
      *         {
-     *             "name"="organizerName",
+     *             "name"="id",
      *             "dataType"="string",
      *             "requirement"="true",
      *             "description"="organizer name"
@@ -66,10 +72,131 @@ class OrganizerController extends RestController
      *         404="Organizer with given name was not found",
      *     }
      * )
-     * @param string $organizerName organizer name
+     * @param string $id organizer id
      */
-    public function viewAction(string $organizerName): Response
+    public function viewAction(string $id): Response
     {
-        return $this->viewEntity($this->get('rockparade.organizer_repository'), $organizerName);
+        return $this->viewEntity($this->get('rockparade.organizer_repository'), $id);
+    }
+
+    /**
+     * Create new organizer
+     * @Route("", name="organizer_create")
+     * @Method("POST")
+     * @Security("has_role('ROLE_USER')")
+     * @ApiDoc(
+     *     section="Organizer",
+     *     requirements={
+     *         {
+     *             "name"="name",
+     *             "dataType"="string",
+     *             "requirement"="true",
+     *             "description"="organization name"
+     *         },
+     *         {
+     *             "name"="description",
+     *             "dataType"="string",
+     *             "requirement"="true",
+     *             "description"="organization description"
+     *         },
+     *         {
+     *             "name"="members",
+     *             "dataType"="array",
+     *             "requirement"="false",
+     *             "description"="logins and short descriptions of organization members"
+     *         },
+     *     },
+     *     statusCodes={
+     *         201="New organizer was created. Link to new resource provided in header 'Location'",
+     *         400="Validation error",
+     *     }
+     * )
+     */
+    public function createAction(Request $request): Response
+    {
+        $form = $this->createAndProcessForm($request, OrganizerFormType::class);
+
+        $apiResponseFactory = $this->get('rockparade.api_response_factory');
+        $response = $apiResponseFactory->createResponse(
+            $this->createApiOperation($request),
+            $form,
+            $this->getUser()
+        );
+
+        return $this->respond($response);
+    }
+
+    /**
+     * Add new member to organization
+     * @Route("/members", name="organizer_member_create")
+     * @Method("POST")
+     * @Security("has_role('ROLE_USER')")
+     * @ApiDoc(
+     *     section="Organizer",
+     *     requirements={
+     *         {
+     *             "name"="ambassador",
+     *             "dataType"="string",
+     *             "requirement"="true",
+     *             "description"="organizer id"
+     *         },
+     *         {
+     *             "name"="login",
+     *             "dataType"="string",
+     *             "requirement"="true",
+     *             "description"="user login"
+     *         },
+     *         {
+     *             "name"="short_description",
+     *             "dataType"="string",
+     *             "requirement"="true",
+     *             "description"="short description of user role in organization"
+     *         },
+     *         {
+     *             "name"="description",
+     *             "dataType"="string",
+     *             "requirement"="false",
+     *             "description"="long description of user"
+     *         },
+     *     },
+     *     statusCodes={
+     *         201="Member was added to organization",
+     *         400="Validation error",
+     *         404="Organizer or User was not found",
+     *     }
+     * )
+     */
+    public function createMemberAction(Request $request): Response
+    {
+        $form = $this->createAndProcessForm($request, OrganizerMemberFormType::class);
+
+        $apiResponseFactory = $this->get('rockparade.api_response_factory');
+        $response = $apiResponseFactory->createResponse(
+            $this->createApiOperation($request),
+            $form,
+            $this->getUser()
+        );
+
+        return $this->respond($response);
+    }
+
+    /**
+     * Delete member from organizer
+     * @Route("/{id}/member/{userLogin}", name="organizer_member_delete")
+     * @Method("DELETE")
+     * @Security("has_role('ROLE_USER')")
+     * @ApiDoc(
+     *     section="Organizer",
+     *     statusCodes={
+     *         204="Member was deleted from organizer",
+     *         404="Organizer or user was not found",
+     *     }
+     * )
+     * @param string $id band id
+     * @param string $userLogin member login
+     */
+    public function deleteMemberAction(string $id, string $userLogin): Response
+    {
+        return parent::deleteMember(new AmbassadorType(Organizer::class), $this->getUser(), $id, $userLogin);
     }
 }

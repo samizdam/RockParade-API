@@ -4,10 +4,13 @@ namespace AppBundle\Service\Entity;
 
 use AppBundle\Entity\Band;
 use AppBundle\Entity\BandMember;
+use AppBundle\Entity\Infrasctucture\Ambassador;
+use AppBundle\Entity\Infrasctucture\AmbassadorMember;
 use AppBundle\Entity\Repository\BandMemberRepository;
 use AppBundle\Entity\Repository\BandRepository;
 use AppBundle\Entity\Repository\UserRepository;
 use AppBundle\Entity\User;
+use AppBundle\Form\Ambassador\UpdateBandFormType;
 use Symfony\Component\Form\FormError;
 use Symfony\Component\Form\FormInterface;
 
@@ -38,11 +41,6 @@ class BandService extends EntityService
         $this->userRepository = $userRepository;
     }
 
-    public function processFormAndCreateBand(FormInterface $form, User $creator): FormInterface
-    {
-        return $this->createOrUpdateBand($form, $creator);
-    }
-
     public function processFormAndUpdateBand(FormInterface $form, Band $band, User $creator): FormInterface
     {
         return $this->createOrUpdateBand($form, $creator, $band);
@@ -68,22 +66,16 @@ class BandService extends EntityService
             return null;
         }
 
-        $membersData = $form->get(self::ATTRIBUTE_MEMBERS)->getData();
-
-        if (!$membersData) {
-            $form->addError(new FormError(sprintf('Parameter "%s" is mandatory.', self::ATTRIBUTE_MEMBERS)));
-
-            return null;
-        }
-
         $bandNewName = $form->get('name')->getData();
         $description = $form->get('description')->getData();
 
-        if ($this->bandRepository->findOneByName($bandNewName)) {
+        if ($band && $band->getName() !== $bandNewName && $this->bandRepository->findOneByName($bandNewName)) {
             $form->addError(new FormError(sprintf('Band with name "%s" already exists.', $bandNewName)));
 
             return null;
         }
+
+        $bandMembers = [];
 
         if ($band) {
             $band->setName($bandNewName);
@@ -91,10 +83,12 @@ class BandService extends EntityService
         } else {
             $band = new Band($bandNewName, $creator, $description);
             $this->bandRepository->persist($band);
+            $bandMembers[] = $this->createAmbassadorMemberFromCreator($band, $creator);
         }
 
-        $bandMembers = $this->getBandMembersFromForm($band, $form);
-        $bandMembers[] = $this->createBandMemberFromCreator($band, $creator);
+        if ($form->get(self::ATTRIBUTE_MEMBERS)->getData()) {
+            $bandMembers = array_merge($bandMembers, $this->getBandMembersFromForm($band, $form));
+        }
 
         foreach ($bandMembers as $bandMember) {
             $band->addMember($bandMember);
@@ -125,7 +119,7 @@ class BandService extends EntityService
                     );
                 }
 
-                return $this->bandMemberRepository->getOrCreateByBandAndUser($band, $user, $shortDescription);
+                return $this->bandMemberRepository->getOrCreateByAmbassadorAndUser($band, $user, $shortDescription);
             },
             $form->get(self::ATTRIBUTE_MEMBERS)->getData()
         );
@@ -147,10 +141,10 @@ class BandService extends EntityService
         return $form;
     }
 
-    private function createBandMemberFromCreator(Band $band, User $creator): BandMember
+    public function createAmbassadorMemberFromCreator(Ambassador $ambassador, User $creator): AmbassadorMember
     {
-        return $this->bandMemberRepository->getOrCreateByBandAndUser(
-            $band,
+        return $this->bandMemberRepository->getOrCreateByAmbassadorAndUser(
+            $ambassador,
             $creator,
             self::CREATOR_DEFAULT_MEMBER_SHORT_DESCRIPTION
         );
